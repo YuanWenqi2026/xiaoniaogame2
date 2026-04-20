@@ -13,14 +13,9 @@
             padding:16px 36px; font-size:20px; background:#4CAF50; color:white;
             border:none; border-radius:12px; z-index:10;
         }
-        #loading {
-            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-            color:#fff; font-size:24px; z-index:5;
-        }
     </style>
 </head>
 <body>
-    <div id="loading">加载中...</div>
     <canvas id="gameCanvas"></canvas>
     <button id="startBtn">开始游戏</button>
 
@@ -28,7 +23,6 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const startBtn = document.getElementById('startBtn');
-const loadingDiv = document.getElementById('loading');
 
 let w = window.innerWidth;
 let h = window.innerHeight;
@@ -36,10 +30,8 @@ canvas.width = w;
 canvas.height = h;
 
 let gameStarted = false;
-let assetsLoaded = 0;
-const totalAssets = 8; // 8张图片
 
-// 小鸟配置
+// 小鸟
 const bird = {
     x: w * 0.2,
     y: h / 2,
@@ -50,7 +42,7 @@ const bird = {
     wingOpen: false
 };
 
-// 管道配置（隧道≥小鸟3倍）
+// 管道（隧道≥小鸟3倍）
 const pipe = {
     width: 70,
     gap: bird.size * 3.2,
@@ -58,13 +50,11 @@ const pipe = {
 };
 let pipes = [];
 
-// 食物和分数
+// 食物
 let foods = [];
 let score = 0;
 
-// ======================
-// 资源加载（带详细错误处理）
-// ======================
+// 图片（严格匹配你仓库文件名）
 const imgs = {
     bg: new Image(),
     birdClose: new Image(),
@@ -75,59 +65,16 @@ const imgs = {
     carrot: new Image(),
     lajiao: new Image()
 };
-
-// 资源加载完成处理
-function assetLoaded() {
-    assetsLoaded++;
-    console.log(`资源加载进度: ${assetsLoaded}/${totalAssets}`);
-    if (assetsLoaded >= totalAssets) {
-        loadingDiv.style.display = 'none';
-        startBtn.style.display = 'block';
-        console.log('✅ 所有图片资源加载完成！');
-    }
-}
-
-// 资源加载失败处理
-function assetError(resourceName, url) {
-    console.error(`❌ 资源加载失败: ${resourceName}`);
-    console.error(`URL: ${url}`);
-    assetLoaded(); // 继续加载其他资源
-}
-
-// 图片路径（严格匹配你仓库文件名）
-imgs.bg.src = "bg.png.png";
-imgs.bg.onload = () => { console.log('✅ bg.png.png 加载成功'); assetLoaded(); };
-imgs.bg.onerror = () => assetError('bg.png.png', imgs.bg.src);
-
+imgs.bg.src = "bg1.png.png";
 imgs.birdClose.src = "bird_close.png.png";
-imgs.birdClose.onload = () => { console.log('✅ bird_close.png.png 加载成功'); assetLoaded(); };
-imgs.birdClose.onerror = () => assetError('bird_close.png.png', imgs.birdClose.src);
-
-imgs.birdOpen.src = "小鸟open.png";
-imgs.birdOpen.onload = () => { console.log('✅ 小鸟open.png 加载成功'); assetLoaded(); };
-imgs.birdOpen.onerror = () => assetError('小鸟open.png', imgs.birdOpen.src);
-
-imgs.pipeTop.src = "pipe_top.png.png";
-imgs.pipeTop.onload = () => { console.log('✅ pipe_top.png.png 加载成功'); assetLoaded(); };
-imgs.pipeTop.onerror = () => assetError('pipe_top.png.png', imgs.pipeTop.src);
-
-imgs.pipeBottom.src = "zhuzi.png";
-imgs.pipeBottom.onload = () => { console.log('✅ zhuzi.png 加载成功'); assetLoaded(); };
-imgs.pipeBottom.onerror = () => assetError('zhuzi.png', imgs.pipeBottom.src);
-
+imgs.birdOpen.src = "小鸟open.png"; // ✅ 已插入张开翅膀图片
+imgs.pipeTop.src = "pipe_top1.png.png";
+imgs.pipeBottom.src = "zhuzi1.png";
 imgs.corn.src = "fruit.png.png";
-imgs.corn.onload = () => { console.log('✅ fruit.png.png 加载成功'); assetLoaded(); };
-imgs.corn.onerror = () => assetError('fruit.png.png', imgs.corn.src);
-
 imgs.carrot.src = "luobo.png";
-imgs.carrot.onload = () => { console.log('✅ luobo.png 加载成功'); assetLoaded(); };
-imgs.carrot.onerror = () => assetError('luobo.png', imgs.carrot.src);
-
 imgs.lajiao.src = "lajiao.png";
-imgs.lajiao.onload = () => { console.log('✅ lajiao.png 加载成功'); assetLoaded(); };
-imgs.lajiao.onerror = () => assetError('lajiao.png', imgs.lajiao.src);
 
-// 音频资源
+// 音频（修复自动播放）
 let sounds = {};
 function initAudio() {
     sounds.bg = new Audio("Velvet Afternoon 背景音.mp3");
@@ -137,11 +84,6 @@ function initAudio() {
     sounds.bg.volume = 0.5;
     sounds.wing.volume = 0.6;
     sounds.eat.volume = 0.7;
-
-    // 音频加载错误处理
-    sounds.bg.onerror = () => console.error('❌ 背景音乐加载失败: Velvet Afternoon 背景音.mp3');
-    sounds.wing.onerror = () => console.error('❌ 扇翅膀音效加载失败: 扇翅膀.mp3');
-    sounds.eat.onerror = () => console.error('❌ 吃水果音效加载失败: 吃水果.mp3');
 }
 
 // 开始游戏
@@ -161,7 +103,7 @@ function startGame() {
     score = 0;
 }
 
-// 跳跃控制（点击上升，切换翅膀，播放音效）
+// 跳跃（修复点击失效）
 function jump(e) {
     if (e) e.preventDefault();
     if (!gameStarted) return;
@@ -170,7 +112,7 @@ function jump(e) {
     try { sounds.wing.currentTime = 0; sounds.wing.play(); } catch (e) {}
 }
 
-// 创建管道和食物
+// 创建管道+食物
 function createPipe() {
     const minTopH = h * 0.15;
     const maxTopH = h * 0.45;
@@ -182,7 +124,7 @@ function createPipe() {
         { x: w, y: bottomY, h: h - bottomY, type: "bottom" }
     );
 
-    // 食物在隧道中间，可偏上偏下
+    // 食物可偏上偏下
     const centerY = topH + pipe.gap / 2;
     const offset = (Math.random() - 0.5) * 60;
     const foodY = centerY + offset;
@@ -195,11 +137,11 @@ function createPipe() {
     });
 }
 
-// 游戏主循环
+// 游戏循环（带兜底渲染，不会白屏）
 function loop() {
     ctx.clearRect(0, 0, w, h);
 
-    // 绘制背景（带兜底）
+    // 兜底背景：图片加载失败就用纯色+草地
     if (imgs.bg.complete && imgs.bg.width > 0) {
         ctx.drawImage(imgs.bg, 0, 0, w, h);
     } else {
@@ -228,8 +170,10 @@ function loop() {
         if (bird.y <= 0 || bird.y >= h) dead = true;
         pipes.forEach(p => {
             if (
-                bird.x + 20 > p.x && bird.x - 20 < p.x + pipe.width &&
-                bird.y + 20 > p.y && bird.y - 20 < p.y + p.h
+                bird.x + 20 > p.x &&
+                bird.x - 20 < p.x + pipe.width &&
+                bird.y + 20 > p.y &&
+                bird.y - 20 < p.y + p.h
             ) dead = true;
         });
         if (dead) gameOver();
@@ -253,7 +197,7 @@ function loop() {
         });
     }
 
-    // 绘制管道（带兜底）
+    // 绘制管道（兜底绿色方块）
     pipes.forEach(p => {
         if (imgs.pipeTop.complete && imgs.pipeTop.width > 0 && imgs.pipeBottom.complete && imgs.pipeBottom.width > 0) {
             ctx.drawImage(p.type === "top" ? imgs.pipeTop : imgs.pipeBottom, p.x, p.y, pipe.width, p.h);
@@ -266,7 +210,7 @@ function loop() {
         }
     });
 
-    // 绘制食物（带兜底）
+    // 绘制食物（兜底红色圆）
     foods.forEach(f => {
         const foodImg = imgs[f.type];
         if (foodImg && foodImg.complete && foodImg.width > 0) {
@@ -279,7 +223,7 @@ function loop() {
         }
     });
 
-    // 绘制小鸟（带兜底）
+    // 绘制小鸟（兜底黄色圆）
     const birdImg = bird.wingOpen ? imgs.birdOpen : imgs.birdClose;
     if (birdImg && birdImg.complete && birdImg.width > 0) {
         ctx.drawImage(birdImg, bird.x - bird.size/2, bird.y - bird.size/2, bird.size, bird.size);
@@ -294,7 +238,7 @@ function loop() {
         ctx.fill();
     }
 
-    // 分数显示
+    // 分数
     ctx.fillStyle = "#fff";
     ctx.font = "bold 24px Arial";
     ctx.fillText("得分：" + score, 15, 35);
@@ -321,7 +265,7 @@ function gameOver() {
     }, 1500);
 }
 
-// 事件绑定（支持鼠标+触屏）
+// 事件绑定（同时支持鼠标+触屏）
 startBtn.addEventListener("click", startGame);
 canvas.addEventListener("click", jump);
 canvas.addEventListener("touchstart", jump);
@@ -332,10 +276,7 @@ window.addEventListener("resize", () => {
     canvas.height = h;
 });
 
-// 开始游戏循环
 loop();
-
-console.log('游戏初始化完成，等待资源加载...');
 </script>
 </body>
 </html>
