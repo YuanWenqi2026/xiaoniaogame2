@@ -31,7 +31,7 @@ canvas.height = h;
 
 let gameStarted = false;
 
-// 小鸟
+// 小鸟配置
 const bird = {
     x: w * 0.2,
     y: h / 2,
@@ -42,7 +42,7 @@ const bird = {
     wingOpen: false
 };
 
-// 管道（隧道≥小鸟3倍）
+// 管道配置（隧道≥小鸟3倍）
 const pipe = {
     width: 70,
     gap: bird.size * 3.2,
@@ -50,11 +50,13 @@ const pipe = {
 };
 let pipes = [];
 
-// 食物
+// 食物和分数
 let foods = [];
 let score = 0;
 
-// 图片（严格匹配你仓库文件名）
+// ======================
+// 资源加载（严格匹配你仓库文件名）
+// ======================
 const imgs = {
     bg: new Image(),
     birdClose: new Image(),
@@ -65,16 +67,18 @@ const imgs = {
     carrot: new Image(),
     lajiao: new Image()
 };
-imgs.bg.src = "bg1.png.png";
+
+// 图片路径（与仓库文件名完全一致）
+imgs.bg.src = "bg.png.png";
 imgs.birdClose.src = "bird_close.png.png";
-imgs.birdOpen.src = "小鸟open.png";
-imgs.pipeTop.src = "pipe_top1.png.png";
-imgs.pipeBottom.src = "zhuzi1.png";
+imgs.birdOpen.src = "小鸟open.png"; // ✅ 已更新为你上传的文件名
+imgs.pipeTop.src = "pipe_top.png.png";
+imgs.pipeBottom.src = "zhuzi.png";
 imgs.corn.src = "fruit.png.png";
 imgs.carrot.src = "luobo.png";
 imgs.lajiao.src = "lajiao.png";
 
-// 音频（修复自动播放）
+// 音频资源
 let sounds = {};
 function initAudio() {
     sounds.bg = new Audio("Velvet Afternoon 背景音.mp3");
@@ -93,7 +97,7 @@ function startGame() {
     startBtn.style.display = "none";
 
     initAudio();
-    try { sounds.bg.play(); } catch (e) { console.log("背景音乐播放失败:", e); }
+    try { sounds.bg.play(); } catch (e) {}
 
     bird.y = h / 2;
     bird.velocity = 0;
@@ -103,7 +107,7 @@ function startGame() {
     score = 0;
 }
 
-// 跳跃（修复点击失效）
+// 跳跃控制（点击上升，切换翅膀，播放音效）
 function jump(e) {
     if (e) e.preventDefault();
     if (!gameStarted) return;
@@ -112,7 +116,7 @@ function jump(e) {
     try { sounds.wing.currentTime = 0; sounds.wing.play(); } catch (e) {}
 }
 
-// 创建管道+食物
+// 创建管道和食物
 function createPipe() {
     const minTopH = h * 0.15;
     const maxTopH = h * 0.45;
@@ -124,7 +128,7 @@ function createPipe() {
         { x: w, y: bottomY, h: h - bottomY, type: "bottom" }
     );
 
-    // 食物可偏上偏下
+    // 食物在隧道中间，可偏上偏下
     const centerY = topH + pipe.gap / 2;
     const offset = (Math.random() - 0.5) * 60;
     const foodY = centerY + offset;
@@ -137,11 +141,11 @@ function createPipe() {
     });
 }
 
-// 游戏循环（带兜底渲染，不会白屏）
+// 游戏主循环
 function loop() {
     ctx.clearRect(0, 0, w, h);
 
-    // 兜底背景：图片加载失败就用纯色+草地
+    // 绘制背景（带兜底）
     if (imgs.bg.complete && imgs.bg.width > 0) {
         ctx.drawImage(imgs.bg, 0, 0, w, h);
     } else {
@@ -195,7 +199,7 @@ function loop() {
         });
     }
 
-    // 绘制管道（兜底绿色方块）
+    // 绘制管道（带兜底）
     pipes.forEach(p => {
         if (imgs.pipeTop.complete && imgs.pipeTop.width > 0 && imgs.pipeBottom.complete && imgs.pipeBottom.width > 0) {
             ctx.drawImage(p.type === "top" ? imgs.pipeTop : imgs.pipeBottom, p.x, p.y, pipe.width, p.h);
@@ -208,7 +212,7 @@ function loop() {
         }
     });
 
-    // 绘制食物（兜底红色圆）
+    // 绘制食物（带兜底）
     foods.forEach(f => {
         const foodImg = imgs[f.type];
         if (foodImg && foodImg.complete && foodImg.width > 0) {
@@ -221,7 +225,7 @@ function loop() {
         }
     });
 
-    // 绘制小鸟（兜底黄色圆）
+    // 绘制小鸟（带兜底）
     const birdImg = bird.wingOpen ? imgs.birdOpen : imgs.birdClose;
     if (birdImg && birdImg.complete && birdImg.width > 0) {
         ctx.drawImage(birdImg, bird.x - bird.size/2, bird.y - bird.size/2, bird.size, bird.size);
@@ -236,7 +240,7 @@ function loop() {
         ctx.fill();
     }
 
-    // 分数
+    // 分数显示
     ctx.fillStyle = "#fff";
     ctx.font = "bold 24px Arial";
     ctx.fillText("得分：" + score, 15, 35);
@@ -263,7 +267,7 @@ function gameOver() {
     }, 1500);
 }
 
-// 事件绑定（同时支持鼠标+触屏）
+// 事件绑定（支持鼠标+触屏）
 startBtn.addEventListener("click", startGame);
 canvas.addEventListener("click", jump);
 canvas.addEventListener("touchstart", jump);
