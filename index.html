@@ -67,7 +67,7 @@ const imgs = {
 };
 imgs.bg.src = "bg1.png.png";
 imgs.birdClose.src = "bird_close.png.png";
-imgs.birdOpen.src = "小鸟open.png"; // ✅ 已插入张开翅膀图片
+imgs.birdOpen.src = "小鸟open.png";
 imgs.pipeTop.src = "pipe_top1.png.png";
 imgs.pipeBottom.src = "zhuzi1.png";
 imgs.corn.src = "fruit.png.png";
@@ -170,10 +170,8 @@ function loop() {
         if (bird.y <= 0 || bird.y >= h) dead = true;
         pipes.forEach(p => {
             if (
-                bird.x + 20 > p.x &&
-                bird.x - 20 < p.x + pipe.width &&
-                bird.y + 20 > p.y &&
-                bird.y - 20 < p.y + p.h
+                bird.x + 20 > p.x && bird.x - 20 < p.x + pipe.width &&
+                bird.y + 20 > p.y && bird.y - 20 < p.y + p.h
             ) dead = true;
         });
         if (dead) gameOver();
