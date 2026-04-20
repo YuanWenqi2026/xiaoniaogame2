@@ -13,9 +13,14 @@
             padding:16px 36px; font-size:20px; background:#4CAF50; color:white;
             border:none; border-radius:12px; z-index:10;
         }
+        #loading {
+            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            color:#fff; font-size:24px; z-index:5;
+        }
     </style>
 </head>
 <body>
+    <div id="loading">加载中...</div>
     <canvas id="gameCanvas"></canvas>
     <button id="startBtn">开始游戏</button>
 
@@ -23,6 +28,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const startBtn = document.getElementById('startBtn');
+const loadingDiv = document.getElementById('loading');
 
 let w = window.innerWidth;
 let h = window.innerHeight;
@@ -30,6 +36,8 @@ canvas.width = w;
 canvas.height = h;
 
 let gameStarted = false;
+let assetsLoaded = 0;
+const totalAssets = 8; // 8张图片
 
 // 小鸟配置
 const bird = {
@@ -55,7 +63,7 @@ let foods = [];
 let score = 0;
 
 // ======================
-// 资源加载（严格匹配你仓库文件名）
+// 资源加载（带详细错误处理）
 // ======================
 const imgs = {
     bg: new Image(),
@@ -68,15 +76,56 @@ const imgs = {
     lajiao: new Image()
 };
 
-// 图片路径（与仓库文件名完全一致）
+// 资源加载完成处理
+function assetLoaded() {
+    assetsLoaded++;
+    console.log(`资源加载进度: ${assetsLoaded}/${totalAssets}`);
+    if (assetsLoaded >= totalAssets) {
+        loadingDiv.style.display = 'none';
+        startBtn.style.display = 'block';
+        console.log('✅ 所有图片资源加载完成！');
+    }
+}
+
+// 资源加载失败处理
+function assetError(resourceName, url) {
+    console.error(`❌ 资源加载失败: ${resourceName}`);
+    console.error(`URL: ${url}`);
+    assetLoaded(); // 继续加载其他资源
+}
+
+// 图片路径（严格匹配你仓库文件名）
 imgs.bg.src = "bg.png.png";
+imgs.bg.onload = () => { console.log('✅ bg.png.png 加载成功'); assetLoaded(); };
+imgs.bg.onerror = () => assetError('bg.png.png', imgs.bg.src);
+
 imgs.birdClose.src = "bird_close.png.png";
-imgs.birdOpen.src = "小鸟open.png"; // ✅ 已更新为你上传的文件名
+imgs.birdClose.onload = () => { console.log('✅ bird_close.png.png 加载成功'); assetLoaded(); };
+imgs.birdClose.onerror = () => assetError('bird_close.png.png', imgs.birdClose.src);
+
+imgs.birdOpen.src = "小鸟open.png";
+imgs.birdOpen.onload = () => { console.log('✅ 小鸟open.png 加载成功'); assetLoaded(); };
+imgs.birdOpen.onerror = () => assetError('小鸟open.png', imgs.birdOpen.src);
+
 imgs.pipeTop.src = "pipe_top.png.png";
+imgs.pipeTop.onload = () => { console.log('✅ pipe_top.png.png 加载成功'); assetLoaded(); };
+imgs.pipeTop.onerror = () => assetError('pipe_top.png.png', imgs.pipeTop.src);
+
 imgs.pipeBottom.src = "zhuzi.png";
+imgs.pipeBottom.onload = () => { console.log('✅ zhuzi.png 加载成功'); assetLoaded(); };
+imgs.pipeBottom.onerror = () => assetError('zhuzi.png', imgs.pipeBottom.src);
+
 imgs.corn.src = "fruit.png.png";
+imgs.corn.onload = () => { console.log('✅ fruit.png.png 加载成功'); assetLoaded(); };
+imgs.corn.onerror = () => assetError('fruit.png.png', imgs.corn.src);
+
 imgs.carrot.src = "luobo.png";
+imgs.carrot.onload = () => { console.log('✅ luobo.png 加载成功'); assetLoaded(); };
+imgs.carrot.onerror = () => assetError('luobo.png', imgs.carrot.src);
+
 imgs.lajiao.src = "lajiao.png";
+imgs.lajiao.onload = () => { console.log('✅ lajiao.png 加载成功'); assetLoaded(); };
+imgs.lajiao.onerror = () => assetError('lajiao.png', imgs.lajiao.src);
 
 // 音频资源
 let sounds = {};
@@ -88,6 +137,11 @@ function initAudio() {
     sounds.bg.volume = 0.5;
     sounds.wing.volume = 0.6;
     sounds.eat.volume = 0.7;
+
+    // 音频加载错误处理
+    sounds.bg.onerror = () => console.error('❌ 背景音乐加载失败: Velvet Afternoon 背景音.mp3');
+    sounds.wing.onerror = () => console.error('❌ 扇翅膀音效加载失败: 扇翅膀.mp3');
+    sounds.eat.onerror = () => console.error('❌ 吃水果音效加载失败: 吃水果.mp3');
 }
 
 // 开始游戏
@@ -97,7 +151,7 @@ function startGame() {
     startBtn.style.display = "none";
 
     initAudio();
-    try { sounds.bg.play(); } catch (e) {}
+    try { sounds.bg.play(); } catch (e) { console.log("背景音乐播放失败:", e); }
 
     bird.y = h / 2;
     bird.velocity = 0;
@@ -278,7 +332,10 @@ window.addEventListener("resize", () => {
     canvas.height = h;
 });
 
+// 开始游戏循环
 loop();
+
+console.log('游戏初始化完成，等待资源加载...');
 </script>
 </body>
 </html>
