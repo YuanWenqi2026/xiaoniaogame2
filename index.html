@@ -2,35 +2,18 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>可爱小鸟飞游戏</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小鸟飞游戏</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        html, body {
-            width: 100%; height: 100%;
-            overflow: hidden;
-            position: fixed;
-            background: #87CEEB;
-        }
-        #gameCanvas {
-            width: 100%; height: 100%;
-            image-rendering: pixelated;
-            touch-action: none;
-            display: block;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #87CEEB; }
+        #gameCanvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
         #startBtn {
-            position: absolute;
-            padding: 15px 30px; font-size: 20px;
-            background: #4CAF50; color: white;
-            border: none; border-radius: 10px;
-            cursor: pointer;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 100;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            padding: 15px 35px; font-size: 20px; background: #4CAF50; color: white;
+            border: none; border-radius: 12px; cursor: pointer; z-index: 100;
         }
-        #startBtn:active {
-            background: #45a049;
-        }
+        #startBtn:active { background: #45a049; }
     </style>
 </head>
 <body>
@@ -42,224 +25,88 @@
 (function() {
     "use strict";
 
-    var canvas, ctx, startBtn;
-    var gameStarted = false;
-    var gameWidth, gameHeight;
-    var scaleFactor = 1;
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const startBtn = document.getElementById("startBtn");
 
-    var bird = {
-        x: 80,
-        y: 200,
-        size: 40,
-        gravity: 0.2,
-        lift: -4,
+    let gameWidth = window.innerWidth;
+    let gameHeight = window.innerHeight;
+    let gameStarted = false;
+    let scaleFactor = Math.min(gameHeight / 667, 1.2); // 手机适配缩放
+
+    // 1. 游戏核心配置
+    const bird = {
+        x: gameWidth * 0.2,
+        y: gameHeight / 2,
+        size: Math.round(45 * scaleFactor), // 小鸟基础尺寸
+        gravity: 0.22,
+        lift: -4.8,
         velocity: 0,
-        wingOpen: false,
-        speed: 2
+        wingOpen: false
     };
 
-    var pipes = [];
-    var pipeWidth = 70;
-    var pipeGap = 150;
-    var pipeSpeed = 2;
-    var lastPipeTime = 0;
-    var pipeInterval = 2500;
+    const pipeConfig = {
+        width: Math.round(75 * scaleFactor),
+        gap: Math.round(bird.size * 3.2), // 隧道宽度 = 小鸟3倍+余量，保证绝对安全
+        speed: Math.round(2.2 * scaleFactor),
+        interval: 2200 // 生成间隔
+    };
 
-    var foods = [];
-    var score = 0;
+    let pipes = [];
+    let foods = [];
+    let score = 0;
 
-    var imgBg = new Image();
-    var imgBirdClose = new Image();
-    var imgBirdOpen = new Image();
-    var imgPipeTop = new Image();
-    var imgPipeBottom = new Image();
-    var imgCorn = new Image();
-    var imgCarrot = new Image();
-    var imgLajiao = new Image();
+    // 2. 资源定义（严格匹配你的仓库文件名）
+    const assets = {
+        bg: new Image(),
+        birdClose: new Image(),
+        birdOpen: new Image(),
+        pipeTop: new Image(),
+        pipeBottom: new Image(),
+        corn: new Image(),
+        carrot: new Image(),
+        lajiao: new Image()
+    };
 
-    var soundBg, soundEat, soundWing;
+    const sounds = {
+        bg: new Audio("Velvet Afternoon 背景音.mp3"),
+        wing: new Audio("扇翅膀.mp3"),
+        eat: new Audio("吃水果.mp3")
+    };
 
-    function compressImage(img, maxWidth, maxHeight, callback) {
-        var tempCanvas = document.createElement("canvas");
-        var tempCtx = tempCanvas.getContext("2d");
+    // 资源路径映射
+    assets.bg.src = "bg1.png.png";
+    assets.birdClose.src = "bird_close.png.png";
+    assets.birdOpen.src = "小鸟open.png";
+    assets.pipeTop.src = "pipe_top1.png.png"; // 匹配仓库文件
+    assets.pipeBottom.src = "zhuzi1.png";   // 匹配仓库文件
+    assets.corn.src = "fruit.png.png";
+    assets.carrot.src = "luobo.png";
+    assets.lajiao.src = "lajiao.png";
 
-        var ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
-        var newWidth = img.width * ratio;
-        var newHeight = img.height * ratio;
+    // 音频基础设置
+    sounds.bg.loop = true;
+    sounds.bg.volume = 0.45;
+    sounds.wing.volume = 0.6;
+    sounds.eat.volume = 0.7;
 
-        tempCanvas.width = newWidth;
-        tempCanvas.height = newHeight;
-
-        tempCtx.drawImage(img, 0, 0, newWidth, newHeight);
-
-        var compressedDataUrl = tempCanvas.toDataURL("image/png", 0.8);
-
-        var compressedImg = new Image();
-        compressedImg.onload = function() {
-            callback(compressedImg);
-        };
-        compressedImg.src = compressedDataUrl;
-    }
-
-    function loadCompressedImage(img, src, maxWidth, maxHeight, callback) {
-        var tempImg = new Image();
-        tempImg.onload = function() {
-            compressImage(tempImg, maxWidth, maxHeight, function(compressedImg) {
-                img.src = compressedImg.src;
-                if (callback) callback();
-            });
-        };
-        tempImg.onerror = function() {
-            img.src = src;
-            if (callback) callback();
-        };
-        tempImg.src = src;
-    }
-
-    function initGameDimensions() {
+    // 3. 核心游戏逻辑
+    function resizeCanvas() {
         gameWidth = window.innerWidth;
         gameHeight = window.innerHeight;
-        scaleFactor = Math.min(gameWidth / 375, gameHeight / 667);
-
-        bird.size = Math.round(40 * scaleFactor);
-        bird.x = Math.round(gameWidth * 0.2);
-        pipeWidth = Math.round(70 * scaleFactor);
-        pipeGap = Math.max(bird.size * 3.5, Math.round(150 * scaleFactor));
-        pipeSpeed = Math.round(2 * scaleFactor);
-        pipeInterval = Math.round(2500 / scaleFactor);
+        canvas.width = gameWidth;
+        canvas.height = gameHeight;
+        bird.y = gameHeight / 2;
+        // 重置适配参数
+        scaleFactor = Math.min(gameHeight / 667, 1.2);
+        bird.size = Math.round(45 * scaleFactor);
+        pipeConfig.width = Math.round(75 * scaleFactor);
+        pipeConfig.gap = Math.max(bird.size * 3, Math.round(150 * scaleFactor)); // 强制3倍
+        pipeConfig.speed = Math.round(2.2 * scaleFactor);
     }
 
-    function init() {
-        canvas = document.getElementById("gameCanvas");
-        ctx = canvas.getContext("2d");
-        startBtn = document.getElementById("startBtn");
-
-        initGameDimensions();
-
-        var maxImgWidth = Math.round(gameWidth * 0.5);
-        var maxImgHeight = Math.round(gameHeight * 0.3);
-        var birdMaxSize = Math.round(80 * scaleFactor);
-
-        loadCompressedImage(imgBg, "bg1.png.png", gameWidth, gameHeight);
-        loadCompressedImage(imgBirdClose, "bird_close.png.png", birdMaxSize, birdMaxSize);
-        loadCompressedImage(imgBirdOpen, "小鸟open.png", birdMaxSize, birdMaxSize);
-        loadCompressedImage(imgPipeTop, "pipe_top1.png.png", maxImgWidth, maxImgHeight);
-        loadCompressedImage(imgPipeBottom, "zhuzi1.png", maxImgWidth, maxImgHeight);
-        loadCompressedImage(imgCorn, "fruit.png.png", maxImgWidth * 0.5, maxImgHeight * 0.5);
-        loadCompressedImage(imgCarrot, "luobo.png", maxImgWidth * 0.5, maxImgHeight * 0.5);
-        loadCompressedImage(imgLajiao, "lajiao.png", maxImgWidth * 0.5, maxImgHeight * 0.5);
-
-        soundBg = new Audio("Velvet Afternoon 背景音.mp3");
-        soundBg.loop = true;
-        soundBg.volume = 0.5;
-
-        soundEat = new Audio("吃水果.mp3");
-        soundEat.volume = 0.7;
-
-        soundWing = new Audio("扇翅膀.mp3");
-        soundWing.volume = 0.6;
-
-        startBtn.addEventListener("click", startGame);
-        startBtn.addEventListener("touchend", function(e) {
-            e.preventDefault();
-            startGame();
-        });
-
-        canvas.addEventListener("click", jump);
-        canvas.addEventListener("touchstart", function(e) {
-            e.preventDefault();
-            jump();
-        });
-
-        window.addEventListener("resize", resizeCanvas);
-        window.addEventListener("orientationchange", function() {
-            setTimeout(resizeCanvas, 100);
-        });
-
-        resizeCanvas();
-        gameLoop();
-    }
-
-    function resizeCanvas() {
-        initGameDimensions();
-        if (canvas) {
-            canvas.width = gameWidth;
-            canvas.height = gameHeight;
-            bird.y = gameHeight / 2;
-        }
-    }
-
-    function drawBackground() {
-        if (imgBg && imgBg.complete && imgBg.width > 0) {
-            ctx.drawImage(imgBg, 0, 0, gameWidth, gameHeight);
-        } else {
-            ctx.fillStyle = "#87CEEB";
-            ctx.fillRect(0, 0, gameWidth, gameHeight);
-            ctx.fillStyle = "#228B22";
-            ctx.fillRect(0, gameHeight - 50, gameWidth, 50);
-        }
-    }
-
-    function drawBird() {
-        var birdImg = bird.wingOpen ? imgBirdOpen : imgBirdClose;
-        if (birdImg && birdImg.complete && birdImg.width > 0) {
-            ctx.drawImage(birdImg, bird.x - bird.size/2, bird.y - bird.size/2, bird.size, bird.size);
-        } else {
-            ctx.fillStyle = "#FFD700";
-            ctx.beginPath();
-            ctx.arc(bird.x, bird.y, bird.size/2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#000";
-            ctx.beginPath();
-            ctx.arc(bird.x + bird.size/4, bird.y - bird.size/6, bird.size/8, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    function drawPipe(p) {
-        var pImg = p.type === "top" ? imgPipeTop : imgPipeBottom;
-        if (pImg && pImg.complete && pImg.width > 0) {
-            ctx.drawImage(pImg, p.x, p.y, pipeWidth, p.h);
-        } else {
-            ctx.fillStyle = "#228B22";
-            ctx.fillRect(p.x, p.y, pipeWidth, p.h);
-            ctx.fillStyle = "#654321";
-            ctx.fillRect(p.x, p.y, pipeWidth, 15);
-            ctx.fillRect(p.x, p.y + p.h - 15, pipeWidth, 15);
-        }
-    }
-
-    function drawFood(f) {
-        var fImg = null;
-        if (f.type === "corn") fImg = imgCorn;
-        else if (f.type === "carrot") fImg = imgCarrot;
-        else if (f.type === "lajiao") fImg = imgLajiao;
-
-        if (fImg && fImg.complete && fImg.width > 0) {
-            ctx.drawImage(fImg, f.x - f.size/2, f.y - f.size/2, f.size, f.size);
-        } else {
-            ctx.fillStyle = "#FF6347";
-            ctx.beginPath();
-            ctx.arc(f.x, f.y, f.size/2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    function jump(e) {
-        if (e) e.preventDefault();
-        if (!gameStarted) return;
-        bird.velocity = bird.lift;
-        bird.wingOpen = !bird.wingOpen;
-
-        try {
-            soundWing.currentTime = 0;
-            soundWing.play();
-        } catch(err) {}
-    }
-
-    function startGame() {
+    function startGameFunc() {
         if (gameStarted) return;
-
         gameStarted = true;
         startBtn.style.display = "none";
         bird.y = gameHeight / 2;
@@ -268,21 +115,33 @@
         pipes = [];
         foods = [];
         score = 0;
-        lastPipeTime = Date.now();
-
+        // 触发音频播放（解决浏览器限制）
         try {
-            soundBg.play();
-        } catch(err) {}
+            sounds.bg.play().catch(() => {});
+        } catch (e) {}
+    }
+
+    function jump() {
+        if (!gameStarted) return;
+        bird.velocity = bird.lift;
+        bird.wingOpen = !bird.wingOpen;
+        try {
+            sounds.wing.currentTime = 0;
+            sounds.wing.play();
+        } catch (e) {}
     }
 
     function createPipe() {
-        var topHeight = gameHeight * 0.2 + Math.random() * gameHeight * 0.25;
-
-        if (topHeight < gameHeight * 0.15) topHeight = gameHeight * 0.15;
+        // 计算安全的隧道高度，确保上下间距 >= 小鸟3倍
+        const minTopHeight = gameHeight * 0.1;
+        const maxTopHeight = gameHeight * 0.5 - pipeConfig.gap;
+        let topHeight = minTopHeight + Math.random() * (maxTopHeight - minTopHeight);
+        
+        // 加固：强制保证下方有足够空间
         if (topHeight > gameHeight * 0.45) topHeight = gameHeight * 0.45;
 
-        var bottomY = topHeight + pipeGap;
-        var bottomHeight = gameHeight - bottomY;
+        const bottomY = topHeight + pipeConfig.gap;
+        const bottomHeight = gameHeight - bottomY;
 
         pipes.push({
             x: gameWidth,
@@ -291,7 +150,6 @@
             type: "top",
             scored: false
         });
-
         pipes.push({
             x: gameWidth,
             y: bottomY,
@@ -300,155 +158,142 @@
             scored: false
         });
 
-        createFood(topHeight, bottomY);
+        // 创建食物（位于隧道中心，可上下偏移）
+        createFood(topHeight);
     }
 
-    function createFood(topPipeHeight, bottomPipeY) {
-        var foodY = topPipeHeight + pipeGap * 0.5;
+    function createFood(topPipeHeight) {
+        const foodY = topPipeHeight + pipeConfig.gap / 2;
+        // 随机偏移（可偏上或偏下，增加难度）
+        const offset = (Math.random() - 0.5) * (pipeConfig.gap * 0.4);
+        const finalY = foodY + offset;
 
-        var foodTypes = ["corn", "carrot", "lajiao"];
-        var foodType = foodTypes[Math.floor(Math.random() * foodTypes.length)];
-
+        const foodTypes = ["corn", "carrot", "lajiao"];
+        const foodType = foodTypes[Math.floor(Math.random() * 3)];
+        
         foods.push({
-            x: gameWidth + 50,
-            y: foodY,
-            size: 28,
+            x: gameWidth + 60,
+            y: finalY,
+            size: Math.round(28 * scaleFactor),
             type: foodType
         });
     }
 
     function checkCollision() {
-        var birdLeft = bird.x - bird.size/2 + 5;
-        var birdRight = bird.x + bird.size/2 - 5;
-        var birdTop = bird.y - bird.size/2 + 5;
-        var birdBottom = bird.y + bird.size/2 - 5;
+        // 边界碰撞
+        if (bird.y < 0 || bird.y > gameHeight) return true;
+        
+        // 管道碰撞
+        for (const p of pipes) {
+            const birdLeft = bird.x - bird.size / 2 + 5;
+            const birdRight = bird.x + bird.size / 2 - 5;
+            const birdTop = bird.y - bird.size / 2 + 5;
+            const birdBottom = bird.y + bird.size / 2 - 5;
 
-        if (birdTop < 0 || birdBottom > gameHeight) {
-            return true;
-        }
-
-        for (var i = 0; i < pipes.length; i++) {
-            var p = pipes[i];
-            var pLeft = p.x;
-            var pRight = p.x + pipeWidth;
-
-            if (birdRight > pLeft && birdLeft < pRight) {
+            if (birdRight > p.x && birdLeft < p.x + pipeConfig.width) {
                 if (birdTop < p.y + p.h && birdBottom > p.y) {
                     return true;
                 }
             }
         }
-
         return false;
-    }
-
-    function gameLoop() {
-        ctx.clearRect(0, 0, gameWidth, gameHeight);
-        drawBackground();
-
-        if (gameStarted) {
-            bird.velocity += bird.gravity;
-            bird.y += bird.velocity;
-
-            if (bird.y < bird.size/2) {
-                bird.y = bird.size/2;
-                bird.velocity = 0;
-            }
-            if (bird.y > gameHeight - bird.size/2) {
-                bird.y = gameHeight - bird.size/2;
-                bird.velocity = 0;
-            }
-
-            var now = Date.now();
-            if (now - lastPipeTime > pipeInterval) {
-                createPipe();
-                lastPipeTime = now;
-            }
-
-            for (var i = pipes.length - 1; i >= 0; i--) {
-                pipes[i].x -= pipeSpeed;
-                if (pipes[i].x + pipeWidth < 0) {
-                    pipes.splice(i, 1);
-                }
-            }
-
-            for (var j = foods.length - 1; j >= 0; j--) {
-                foods[j].x -= pipeSpeed;
-                if (foods[j].x + 30 < 0) {
-                    foods.splice(j, 1);
-                }
-            }
-
-            if (checkCollision()) {
-                gameOver();
-            }
-
-            for (var k = 0; k < foods.length; k++) {
-                var f = foods[k];
-                var dist = Math.sqrt((bird.x - f.x) * (bird.x - f.x) + (bird.y - f.y) * (bird.y - f.y));
-                if (dist < bird.size/2 + f.size/2) {
-                    try {
-                        soundEat.currentTime = 0;
-                        soundEat.play();
-                    } catch(err) {}
-                    score += 3;
-                    foods.splice(k, 1);
-                    k--;
-                }
-            }
-
-            for (var m = 0; m < pipes.length; m++) {
-                var p = pipes[m];
-                if (p.type === "top" && !p.scored && p.x + pipeWidth < bird.x - bird.size/2) {
-                    p.scored = true;
-                    score++;
-                }
-            }
-        }
-
-        for (var n = 0; n < pipes.length; n++) {
-            drawPipe(pipes[n]);
-        }
-
-        for (var o = 0; o < foods.length; o++) {
-            drawFood(foods[o]);
-        }
-
-        drawBird();
-
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 24px Arial";
-        ctx.fillText("得分：" + score, 15, 35);
-
-        requestAnimationFrame(gameLoop);
     }
 
     function gameOver() {
         gameStarted = false;
-
-        try {
-            soundBg.pause();
-        } catch(err) {}
-
+        try { sounds.bg.pause(); } catch (e) {}
+        
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, gameWidth, gameHeight);
         ctx.fillStyle = "#fff";
-        ctx.font = "bold 36px Arial";
+        ctx.font = `bold ${Math.round(32 * scaleFactor)}px Arial`;
         ctx.textAlign = "center";
-        ctx.fillText("游戏结束", gameWidth/2, gameHeight/2 - 30);
-        ctx.fillText("最终得分：" + score, gameWidth/2, gameHeight/2 + 10);
-        ctx.textAlign = "left";
-
-        setTimeout(function() {
+        ctx.fillText("游戏结束", gameWidth / 2, gameHeight / 2 - 30);
+        ctx.fillText(`得分: ${score}`, gameWidth / 2, gameHeight / 2 + 10);
+        
+        setTimeout(() => {
             startBtn.style.display = "block";
             startBtn.textContent = "再来一次";
-        }, 2000);
+        }, 1500);
     }
 
-    window.addEventListener("load", init);
-    window.addEventListener("resize", function() {
-        setTimeout(resizeCanvas, 100);
+    // 4. 渲染循环
+    function drawGame() {
+        ctx.clearRect(0, 0, gameWidth, gameHeight);
+        // 绘制背景
+        ctx.drawImage(assets.bg, 0, 0, gameWidth, gameHeight);
+
+        if (gameStarted) {
+            // 小鸟物理
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+            // 限制小鸟出界
+            if (bird.y < bird.size / 2) bird.y = bird.size / 2;
+            if (bird.y > gameHeight - bird.size / 2) bird.y = gameHeight - bird.size / 2;
+
+            // 生成管道
+            if (Math.random() < 0.009) createPipe();
+
+            // 更新与绘制管道
+            pipes.forEach(p => {
+                p.x -= pipeConfig.speed;
+                // 绘制管道图片
+                const pImg = p.type === "top" ? assets.pipeTop : assets.pipeBottom;
+                ctx.drawImage(pImg, p.x, p.y, pipeConfig.width, p.h);
+                
+                // 计分逻辑
+                if (p.type === "top" && !p.scored && p.x + pipeConfig.width < bird.x - bird.size / 2) {
+                    p.scored = true;
+                    score += 1;
+                }
+            });
+
+            // 更新与绘制食物
+            foods.forEach((f, index) => {
+                f.x -= pipeConfig.speed;
+                const fImg = assets[f.type];
+                ctx.drawImage(fImg, f.x - f.size / 2, f.y - f.size / 2, f.size, f.size);
+
+                // 吃食物逻辑
+                const dist = Math.hypot(bird.x - f.x, bird.y - f.y);
+                if (dist < bird.size / 2 + f.size / 2) {
+                    try {
+                        sounds.eat.currentTime = 0;
+                        sounds.eat.play();
+                    } catch (e) {}
+                    score += 5; // 吃水果加5分
+                    foods.splice(index, 1);
+                }
+            });
+
+            // 碰撞检测
+            if (checkCollision()) {
+                gameOver();
+            }
+        }
+
+        // 绘制小鸟
+        const birdImg = bird.wingOpen ? assets.birdOpen : assets.birdClose;
+        ctx.drawImage(birdImg, bird.x - bird.size / 2, bird.y - bird.size / 2, bird.size, bird.size);
+
+        // 绘制分数
+        ctx.fillStyle = "#fff";
+        ctx.font = `bold ${Math.round(24 * scaleFactor)}px Arial`;
+        ctx.fillText(`得分: ${score}`, 15, 30);
+
+        requestAnimationFrame(drawGame);
+    }
+
+    // 5. 初始化与事件绑定
+    window.addEventListener("load", () => {
+        resizeCanvas();
+        drawGame();
     });
+
+    startBtn.addEventListener("click", startGameFunc);
+    canvas.addEventListener("click", jump);
+    window.addEventListener("resize", resizeCanvas);
+
 })();
 </script>
 
